@@ -1,0 +1,149 @@
+import nltk
+
+import codecs
+from nltk.corpus import stopwords, wordnet
+from nltk.stem import WordNetLemmatizer, PorterStemmer
+import nltk.data
+import re
+import os
+
+#phrase1 = "Which bank can I withdraw money from?"
+#phrase2 = "I went fishing for some sea bass"
+
+def simpleFilter(phrase):
+	listeLemmes = []
+	phrase = phrase.lower()
+	phrase = re.sub('[^ \w]|[0-9]','', phrase)
+	phrase = phrase.split()
+	for elem in phrase :
+		listeLemmes.append(lemmatizer.lemmatize(elem))
+	return listeLemmes	
+
+def removeStopWords(phrase):
+	filtered_list = [elem for elem in phrase if elem not in stopwords.words('english')]
+	return filtered_list
+
+def similarityCheck(mot1, mot2):
+	mot2 = mot2 + ".n.01"
+	try:
+		m1 = wordnet.synset(mot1)
+		m2 = wordnet.synset(mot2)
+		return m1.wup_similarity(m2)
+	except:
+		return 0
+
+def rechercheSynset(token,hypo):
+	for synset in wordnet.synsets(token):
+		for hypoCompa in synset.hyponyms():
+			if(hypo==hypoCompa.name()):
+				return synset
+
+def lireFichier(fichier,fichierTemp):
+	for line in fichier.readlines():
+		lineSplited = re.findall(r"[\w]+|[.,!?;]",line)
+		print(lineSplited)
+		for x,elem in enumerate(lineSplited) :
+			if elem in "[.!?]" :
+				compt = x
+				while lineSplited[compt] in "[.!?]" :
+					fichierTemp.write(lineSplited[compt] + " ")
+					compt = compt + 1
+				fichierTemp.write("\n")
+				x = compt
+			fichierTemp.write(elem + " ")
+		fichierTemp.write("\n")
+
+def ecrireFichier(phrase,phraseDesambi):
+	copie = simpleFilter(phrase)
+	#phrase = re.sub( r'([,.!])([a-zA-Z])', r'\1 \2', phrase )
+	phrase = re.findall(r"[\w]+|[.,!?;]",phrase)
+	m=0
+	comptPhraseDesambi=0
+	for n,mot in enumerate(copie):
+		#print(n)
+		while phrase[m] in "[^ \w]+|[.,!?;]" :
+			fichierSortie.write(phrase[m] +"\n")
+			m=m+1
+		if mot in stopwords.words('english') : 
+			#ecrire le stopword sur le fichier
+			fichierSortie.write(phrase[m] +"\n")
+		else :
+			#ecrire le mot + la desambi sur le fichier
+			fichierSortie.write(phrase[m] + " : ")
+			fichierSortie.write(phraseDesambi[comptPhraseDesambi].name())
+			fichierSortie.write("\n")
+			comptPhraseDesambi = comptPhraseDesambi+1
+		m=m+1
+	end = True
+	while end :
+		try :
+			if phrase[m] in "[^ \w]+|[.,!?;]" :
+				fichierSortie.write(phrase[m] +"\n")
+				m=m+1
+		except IndexError : 
+			end =False
+
+
+def desambi(phrase):
+	listesHypos = [] # liste qui contient les listeHyposToken 
+	tokens = removeStopWords(simpleFilter(phrase))
+	#print(tokens)
+
+	for token in tokens :
+		synsets = wordnet.synsets(token)
+		listeHyposToken = [] # liste qui contient les listes hyposSynset
+		for synset in synsets :
+			listeHyposSynset = [] # liste des hyponymes du synset
+			listeHyposSynset.append(synset.hyponyms())
+			listeHyposToken.append(listeHyposSynset)
+		
+		listesHypos.append(listeHyposToken)
+	
+	definitiveSynsets = []
+	for i,listeToken in enumerate(listesHypos) :
+		averageMax = 0
+		for token in listeToken :
+			print(token)
+			for synset in token :
+				for hypo in synset :
+					print(hypo.name())
+					average = 0
+					for j,token in enumerate(tokens) :
+						if(i!=j):
+							#print(wordnet.synsets(tokens[j])[0].name())
+							average = average + similarityCheck(hypo.name(),tokens[j])
+					average = average / j
+					#print(average)
+					#print(averageMax)
+					if(averageMax<average):
+						averageMax=average
+						#print(rechercheSynset(tokens[i],hypo.name()))
+						#print(averageMax)
+						synsetMax=rechercheSynset(tokens[i],hypo.name())
+		definitiveSynsets.append(synsetMax)
+
+	#print(definitiveSynsets)
+	#print(phrase.split())
+	ecrireFichier(phrase,definitiveSynsets)
+
+
+
+
+fichierEntree = open("fichierEntree.txt","r")
+fichierSortie = open("fichierSortie.txt","w")
+
+tokenizer=nltk.data.load('tokenizers/punkt/english.pickle')
+data = fichierEntree.read()
+#print('\n-----\n'.join(tokenizer.tokenize(data)))
+
+print("Desambiguisation en cours")
+for line in tokenizer.tokenize(data) :
+	filtered_sent = []
+	lemmatizer = WordNetLemmatizer()
+	desambi(line)
+
+print("Fin de desambiguisation")
+print("Resultat dans le fichier fichierSortie.txt")
+	
+	
+
